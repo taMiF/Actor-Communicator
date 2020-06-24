@@ -1,0 +1,15 @@
+{
+  "name": "actor-communicator",
+  "title": "Actor communicator",
+  "description": "Gives players a way to organise and chat with contatcs and 'data' using a immersive communicator.",
+  "author": "taMiF  ",
+  "version": "0.0.1",
+  "minimumCoreVersion": "0.6.0",
+  "compatibleCoreVersion": "0.6.4",
+  "scripts": [
+    "scripts/main.js"
+  ],
+  "system": "shadowrun5e",
+  "manifest": "https://raw.githubusercontent.com/taMiF/FoundryVTT-Actor-Communicator/master/module.json",
+  "url": "https://github.com/taMiF/FoundryVTT-Actor-Communicator",
+}
