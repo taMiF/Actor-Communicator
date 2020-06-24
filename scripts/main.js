@@ -20,13 +20,20 @@ const ActorContactsFlag = ['actor-communicator', 'contactIds'];
 class ActorCommunicatorAlarmApp extends Application {
     chatMessage = null;
 
+    activateListeners(html) {
+        super.activateListeners(html);
+
+        //html.find('input[name="contact-add"]').change(this.onContactAddChange);
+        html.find('.chat-message').click(this.onOpenActorCommunicator);
+    }
+
     static get defaultOptions() {
         const options = super.defaultOptions;
         options.width = "auto";
         options.height = "auto";
         options.id = "actor-communicator-alarm";
         options.title = "Alarm";
-        options.classes = ['actor-communicator-alarm'];
+        options.classes = ['actor-communicator', 'actor-communicator-alarm'];
         options.template = "modules/actor-communicator/templates/actor-communicator-alarm.html";
         return options;
     }
@@ -46,12 +53,25 @@ class ActorCommunicatorAlarmApp extends Application {
         return {sender, text}
     }
 
-    showMessage = (chatMessage) => {
+    onOpenActorCommunicator = () => {
+        console.error('onOpenActorCommunicator');
+        if (!this.chatMessage) {
+            return;
+        }
+
+        const actor = game.actors.get(this.chatMessage.recipientId);
+        actorCommunicatorApp.showForActor(actor);
+    }
+
+
+    showMessage = (chatMessage, hideAfterSeconds = 5) => {
         this.chatMessage = chatMessage;
 
         this.render(true);
 
-        setTimeout(() => this.close(), 5000);
+        if (hideAfterSeconds) {
+            setTimeout(() => this.close(), hideAfterSeconds * 1000);
+        }
     }
 }
 
@@ -72,7 +92,7 @@ class ActorCommunicatorApp extends Application {
             console.error('socket', data);
             if (data.chatMessage) {
                 if (this._messageIsForActor(this.selectedActor, data.chatMessage)) {
-                    this.alarmApp.showMessage(data.chatMessage);
+                    this.alarmApp.showMessage(data.chatMessage, null);
                 }
             }
         });
@@ -100,6 +120,12 @@ class ActorCommunicatorApp extends Application {
         return options;
     }
 
+    showForActor = (actor) => {
+        this.selectedActor = actor;
+        this.selectedContact = null;
+        this.render(true);
+    }
+
     getData = () => {
         console.error('getData', game);
         const actors = game.actors.entries ? game.actors.entries : [];
@@ -110,6 +136,11 @@ class ActorCommunicatorApp extends Application {
             selectedActor = game.user.character
         }
         this.selectedActor = selectedActor;
+
+        if (!this._actorHasContact(this.selectedActor, this.selectedContact)) {
+            console.error('Reseting selection')
+            this.selectedContact = null;
+        }
 
         console.error('actor', this.selectedActor);
         console.error(this.selectedContact);
@@ -131,8 +162,22 @@ class ActorCommunicatorApp extends Application {
         return actor.id === chatMessage.recipientId
     }
 
+    _messageIsForOtherActor(chatMessage) {
+        return chatMessage.senderId !== chatMessage.recipientId;
+    }
+
     _messageIsForPlayerActor(chatMessage) {
-        return game.users.entries.some(user => user.character?.id === chatMessage.recipientId);
+        const messageIsForPlayerActor = game.users.entries.some(user => user.character?.id === chatMessage.recipientId);
+        return this._messageIsForOtherActor(chatMessage) && messageIsForPlayerActor;
+    }
+
+    _actorHasContact(actor, possibleContact) {
+        console.error('hasCcontact', actor, possibleContact)
+        if (!possibleContact || !actor) {
+            return false;
+        }
+        const contactIds = this._getActorContactIds(actor);
+        return contactIds.some(contactId => contactId === possibleContact.id);
     }
 
     _getUserControlledActor() {
@@ -244,7 +289,7 @@ class ActorCommunicatorApp extends Application {
         }
 
         const contactId = event.currentTarget.getAttribute('data-actor-id');
-        if (!contactId) {
+        if (!contactId || actor.id === contactId) {
             return;
         }
 
@@ -312,8 +357,11 @@ class ActorCommunicatorApp extends Application {
 }
 
 
+let actorCommunicatorApp = null;
+
 Hooks.on('ready', () => {
     console.error('Actor Communicator', game);
+    actorCommunicatorApp = new ActorCommunicatorApp()
     const users = game.users.entries;
 
     console.error(game.modules.keys());
@@ -339,10 +387,8 @@ Hooks.on('ready', () => {
     console.error(viewportWidth, viewportHeight);
 
     if (game.user.character) {
-        new ActorCommunicatorApp().render(true);
+        actorCommunicatorApp.render(true);
     }
-
-
     // actorComApp.setPosition()
 });
 
@@ -355,7 +401,7 @@ Hooks.on('getSceneControlButtons', controls => {
         onClick: () => {
             // Disable selection of SR5GroupRoll Tool.
             controls[0].activeTool = "select";
-            new ActorCommunicatorApp().render(true)
+            actorCommunicatorApp.render(true)
         }
     })
 });

@@ -5,3 +5,12 @@
 .actor-communicator .contact-interaction {
     width: 48px;
 }
+
+.actor-communicator .chat-message {
+    cursor: pointer;
+}
+
+.actor-communicator-alarm .chat-avatar {
+    width: 24px;
+    height: 24px;
+}
