@@ -9,6 +9,7 @@
  *
  *  TODO: Storing list data with Entity.setFlag ONLY stores persistantly accross refreshes using JSON...
  *  TODO: How to send messages from user to user? Socket? game.socket?
+ *  TODO: Use WYSIWYG Editor for chat texts
  *
  */
 
@@ -16,8 +17,14 @@ const ActorContactsFlag = ['actor-communicator', 'contactIds'];
 
 
 class ActorCommunicatorApp extends Application {
-    contactableActors = [];
     selectedContact = null;
+    selectedActor = null;
+
+    constructor(actor) {
+        super();
+
+        this.selectedActor = actor;
+    }
 
     activateListeners(html) {
         console.error('activateListeners');
@@ -45,28 +52,37 @@ class ActorCommunicatorApp extends Application {
         console.error('getData');
         const actors = game.actors.entries ? game.actors.entries : [];
 
-        let actor = null;
-        if (this._userActorHasContacts()) {
-            actor = game.user.character;
+        // Use selection OR default character.
+        let selectedActor = this._getUserControlledActor();
+        if (!selectedActor && !game.user.isGM) {
+            selectedActor = game.user.character
         }
+        this.selectedActor = selectedActor;
 
-        const contacts = this._getActorContacts(actor);
-        console.error(contacts);
+        console.error(selectedActor);
+
+        const contacts = this._getActorContacts(selectedActor);
         const selectedContact = {
             contact: this.selectedContact,
-            chatHistory: this._getContactChatHistory(actor, this.selectedContact)
+            chatHistory: this._getContactChatHistory(selectedActor, this.selectedContact)
         };
 
         return {
-            actor,
+            selectedActor,
             actors,
             contacts,
             selectedContact
         }
     }
 
-    _userActorHasContacts() {
-        return game.user.character !== null;
+    _getUserControlledActor() {
+        // TODO: Do something about multi selection.
+        const token = canvas.tokens.controlled ? canvas.tokens.controlled[0] : null;
+        if (!token) {
+            return null;
+        }
+        // TODO: Check what happens for Grunt token / actors. Shared chatHistory?
+        return token.actor;
     }
 
     _actorHasContactAlready(actor, contact) {
@@ -78,12 +94,25 @@ class ActorCommunicatorApp extends Application {
         return !this._actorHasContactAlready(actor, contact);
     }
 
+    _getActorFlag(actor, key, defaultValue) {
+        if (!actor) {
+            return null;
+        }
+        const jsonValue = actor.getFlag('actor-communicator', key);
+        if (!jsonValue) {
+            return defaultValue;
+        }
+        return JSON.parse(jsonValue);
+    }
+
     _getActorContactIds(actor) {
-        const contactIds = JSON.parse(actor.getFlag('actor-communicator', 'contactIds'));
-        return contactIds ? contactIds : [];
+        return this._getActorFlag(actor, 'contactIds', []);
     }
 
     _getActorContacts(actor) {
+        if (!actor) {
+            return null;
+        }
         const contactIds = this._getActorContactIds(actor);
         return contactIds.map(id => game.actors.get(id));
     }
@@ -131,9 +160,11 @@ class ActorCommunicatorApp extends Application {
 
     // TODO: Add 'send at' o'clock data
     _newChatMessage(sender, recipient, chatText) {
-        return {senderId: sender.id,
-                recipientId: recipient.id,
-                text: chatText}
+        return {
+            senderId: sender.id,
+            recipientId: recipient.id,
+            text: chatText
+        }
     }
 
     async _appendContactChatText(actor, contact, chatText) {
@@ -244,7 +275,24 @@ Hooks.on('ready', () => {
         document.body.clientHeight;
     console.error(viewportWidth, viewportHeight);
 
-    const actorComApp = new ActorCommunicatorApp().render(true);
+    if (game.user.character) {
+        new ActorCommunicatorApp().render(true);
+    }
+
 
     // actorComApp.setPosition()
+});
+
+Hooks.on('getSceneControlButtons', controls => {
+    controls[0].tools.push({
+        name: 'Communicator',
+        title: 'Communicator',
+        icon: 'fas fa-envelope',
+        visible: game.user.isGM,
+        onClick: () => {
+            // Disable selection of SR5GroupRoll Tool.
+            controls[0].activeTool = "select";
+            new ActorCommunicatorApp().render(true)
+        }
+    })
 });
