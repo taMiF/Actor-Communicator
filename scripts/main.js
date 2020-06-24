@@ -97,6 +97,12 @@ class ActorCommunicatorApp extends Application {
             }
         });
 
+        Hooks.on('controlToken', (token, controlled) => {
+            if (controlled) {
+                console.error(token);
+                this.selectActor(token.actor);
+            }
+        });
     }
 
     activateListeners(html) {
@@ -120,9 +126,17 @@ class ActorCommunicatorApp extends Application {
         return options;
     }
 
-    showForActor = (actor) => {
+    selectActor = (actor) => {
         this.selectedActor = actor;
         this.selectedContact = null;
+
+        if (this.rendered) {
+            this.render();
+        }
+    }
+
+    showForActor = (actor) => {
+        this.selectedActor(actor);
         this.render(true);
     }
 
@@ -135,15 +149,10 @@ class ActorCommunicatorApp extends Application {
         if (!selectedActor && !game.user.isGM) {
             selectedActor = game.user.character
         }
-        this.selectedActor = selectedActor;
-
-        if (!this._actorHasContact(this.selectedActor, this.selectedContact)) {
-            console.error('Reseting selection')
-            this.selectedContact = null;
+        if (this.selectedActor !== selectedActor) {
+            this.selectActor(selectedActor)
         }
 
-        console.error('actor', this.selectedActor);
-        console.error(this.selectedContact);
         const contacts = this._getActorContacts(selectedActor);
         const selectedContact = {
             contact: this.selectedContact,
@@ -172,7 +181,6 @@ class ActorCommunicatorApp extends Application {
     }
 
     _actorHasContact(actor, possibleContact) {
-        console.error('hasCcontact', actor, possibleContact)
         if (!possibleContact || !actor) {
             return false;
         }
