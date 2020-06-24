@@ -7,6 +7,16 @@
 <div>
     <h3>Contacts</h3>
     {{#each contacts as |contact|}}
-    <div>{{contact.name}}<button class="contact-interaction remove-contact" data-actor-id="{{contact.id}}">Del</button></div>
+    <div>
+        <span class='select-contact' data-actor-id="{{contact.id}}">{{contact.name}}</span> <button class="contact-interaction remove-contact" data-actor-id="{{contact.id}}">Del</button></div>
     {{/each}}
+</div>
+<div>
+    <h3>Selected Contact: {{selectedContact.contact.name}}</h3>
+    {{#each selectedContact.chatHistory as |chatMessage|}}
+    <div>{{chatMessage.text}}</div>
+    {{/each}}
+    <div>
+        <input name='add-chat-text' class="add-chat-text" type="text" data-contact-id="{{selectedContact.id}}"/>
+    </div>
 </div>

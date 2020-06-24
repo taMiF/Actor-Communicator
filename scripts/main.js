@@ -8,6 +8,7 @@
  *  TODO: use SR5Actor.setFlag / getFlag to store contacts
  *
  *  TODO: Storing list data with Entity.setFlag ONLY stores persistantly accross refreshes using JSON...
+ *  TODO: How to send messages from user to user? Socket? game.socket?
  *
  */
 
@@ -16,7 +17,7 @@ const ActorContactsFlag = ['actor-communicator', 'contactIds'];
 
 class ActorCommunicatorApp extends Application {
     contactableActors = [];
-    contactAdd = '';
+    selectedContact = null;
 
     activateListeners(html) {
         console.error('activateListeners');
@@ -25,6 +26,8 @@ class ActorCommunicatorApp extends Application {
         //html.find('input[name="contact-add"]').change(this.onContactAddChange);
         html.find('.add-contact').click(this.onAddActorAsContact);
         html.find('.remove-contact').click(this.onRemoveContact);
+        html.find('.select-contact').click(this.onSelectContact);
+        html.find('.add-chat-text').change(this.onAddChatText);
     }
 
     static get defaultOptions() {
@@ -38,7 +41,7 @@ class ActorCommunicatorApp extends Application {
         return options;
     }
 
-    getData() {
+    getData = () => {
         console.error('getData');
         const actors = game.actors.entries ? game.actors.entries : [];
 
@@ -49,11 +52,16 @@ class ActorCommunicatorApp extends Application {
 
         const contacts = this._getActorContacts(actor);
         console.error(contacts);
+        const selectedContact = {
+            contact: this.selectedContact,
+            chatHistory: this._getContactChatHistory(actor, this.selectedContact)
+        };
 
         return {
             actor,
             actors,
-            contacts
+            contacts,
+            selectedContact
         }
     }
 
@@ -90,7 +98,7 @@ class ActorCommunicatorApp extends Application {
         }
 
         return contactIds
-    };
+    }
 
     async _removeActorContact(actor, contact) {
         let contactIds = this._getActorContactIds(actor);
@@ -102,6 +110,42 @@ class ActorCommunicatorApp extends Application {
         console.error('remove', contactIds, contactIndex, contact.id);
         await actor.setFlag('actor-communicator', 'contactIds', JSON.stringify(contactIds));
         return contactIds;
+    }
+
+    _getContactsChatHistory(actor) {
+        if (!actor) {
+            return null;
+        }
+        const chatHistory = actor.getFlag('actor-communicator', 'chat-history');
+        console.error('getContactChatHistory', chatHistory);
+        return chatHistory ? chatHistory : {};
+    }
+
+    _getContactChatHistory(actor, contact) {
+        if (!contact) {
+            return null;
+        }
+        const contactsChatHistory = this._getContactsChatHistory(actor);
+        return contactsChatHistory[contact.id] ? contactsChatHistory[contact.id] : [];
+    }
+
+    // TODO: Add 'send at' o'clock data
+    _newChatMessage(sender, recipient, chatText) {
+        return {senderId: sender.id,
+                recipientId: recipient.id,
+                text: chatText}
+    }
+
+    async _appendContactChatText(actor, contact, chatText) {
+        const chatMessage = this._newChatMessage(actor, contact, chatText);
+        console.error(chatMessage);
+
+        const chatHistory = this._getContactsChatHistory(actor, contact);
+        console.error(chatHistory);
+        chatHistory[contact.id] = chatHistory[contact.id] ? chatHistory[contact.id] : [];
+        chatHistory[contact.id].push(chatMessage);
+        console.error(chatMessage);
+        await actor.setFlag('actor-communicator', 'chat-history', chatHistory);
     }
 
     onAddActorAsContact = (event) => {
@@ -137,6 +181,39 @@ class ActorCommunicatorApp extends Application {
         this._removeActorContact(actor, contact).then(contactIds => {
             this.render();
         });
+    }
+
+    onSelectContact = (event) => {
+        console.error('onSelectContact');
+        const contactId = event.currentTarget.getAttribute('data-actor-id');
+        if (!contactId) {
+            return;
+        }
+
+        this.selectedContact = game.actors.get(contactId);
+        console.error(this.selectedContact);
+        this.render();
+    }
+
+    onAddChatText = (event) => {
+        console.error('onAddChatText');
+        const chatText = event.currentTarget.value;
+        if (!chatText || !chatText.length || chatText.length === 0) {
+            return;
+        }
+
+        const actor = game.user.character;
+        if (!actor) {
+            return;
+        }
+
+        if (this.selectedContact === null) {
+            return;
+        }
+
+        this._appendContactChatText(actor, this.selectedContact, chatText).then(chatHistory => {
+            this.render();
+        })
     }
 }
 
