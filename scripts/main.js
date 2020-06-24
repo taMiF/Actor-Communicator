@@ -59,12 +59,12 @@ class ActorCommunicatorApp extends Application {
         }
         this.selectedActor = selectedActor;
 
-        console.error(selectedActor);
-
+        console.error('actor', this.selectedActor);
+        console.error(this.selectedContact);
         const contacts = this._getActorContacts(selectedActor);
         const selectedContact = {
             contact: this.selectedContact,
-            chatHistory: this._getContactChatHistory(selectedActor, this.selectedContact)
+            chatHistory: this._getContactChatHistory(this.selectedActor, this.selectedContact)
         };
 
         return {
@@ -102,6 +102,10 @@ class ActorCommunicatorApp extends Application {
         if (!jsonValue) {
             return defaultValue;
         }
+        if (typeof jsonValue !== 'string') {
+            return jsonValue;
+        }
+
         return JSON.parse(jsonValue);
     }
 
@@ -142,12 +146,7 @@ class ActorCommunicatorApp extends Application {
     }
 
     _getContactsChatHistory(actor) {
-        if (!actor) {
-            return null;
-        }
-        const chatHistory = actor.getFlag('actor-communicator', 'chat-history');
-        console.error('getContactChatHistory', chatHistory);
-        return chatHistory ? chatHistory : {};
+        return this._getActorFlag(actor, 'chat-history', {});
     }
 
     _getContactChatHistory(actor, contact) {
@@ -169,14 +168,12 @@ class ActorCommunicatorApp extends Application {
 
     async _appendContactChatText(actor, contact, chatText) {
         const chatMessage = this._newChatMessage(actor, contact, chatText);
-        console.error(chatMessage);
 
         const chatHistory = this._getContactsChatHistory(actor, contact);
-        console.error(chatHistory);
         chatHistory[contact.id] = chatHistory[contact.id] ? chatHistory[contact.id] : [];
         chatHistory[contact.id].push(chatMessage);
-        console.error(chatMessage);
-        await actor.setFlag('actor-communicator', 'chat-history', chatHistory);
+        console.error(chatHistory);
+        await actor.setFlag('actor-communicator', 'chat-history', JSON.stringify(chatHistory));
     }
 
     onAddActorAsContact = (event) => {
@@ -233,8 +230,7 @@ class ActorCommunicatorApp extends Application {
             return;
         }
 
-        const actor = game.user.character;
-        if (!actor) {
+        if (this.selectedActor === null) {
             return;
         }
 
@@ -242,7 +238,7 @@ class ActorCommunicatorApp extends Application {
             return;
         }
 
-        this._appendContactChatText(actor, this.selectedContact, chatText).then(chatHistory => {
+        this._appendContactChatText(this.selectedActor, this.selectedContact, chatText).then(chatHistory => {
             this.render();
         })
     }
