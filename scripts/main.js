@@ -10,24 +10,74 @@
  *  TODO: Storing list data with Entity.setFlag ONLY stores persistantly accross refreshes using JSON...
  *  TODO: How to send messages from user to user? Socket? game.socket?
  *  TODO: Use WYSIWYG Editor for chat texts
+ *  TODO: BubbleMessage Support, if possible.
+ *  TODO: Group Contact support with group messages.
  *
  */
 
 const ActorContactsFlag = ['actor-communicator', 'contactIds'];
+
+class ActorCommunicatorAlarmApp extends Application {
+    chatMessage = null;
+
+    static get defaultOptions() {
+        const options = super.defaultOptions;
+        options.width = "auto";
+        options.height = "auto";
+        options.id = "actor-communicator-alarm";
+        options.title = "Alarm";
+        options.classes = ['actor-communicator-alarm'];
+        options.template = "modules/actor-communicator/templates/actor-communicator-alarm.html";
+        return options;
+    }
+
+    getData() {
+        const chatMessage = this.getChatMessage();
+        console.error('Alarm.getdata', chatMessage)
+        return {
+            chatMessage
+        }
+    }
+
+    getChatMessage = () => {
+        console.error(this.chatMessage, this.chatMessage.senderId, game.actors.get(this.chatMessage.senderId));
+        const sender = game.actors.get(this.chatMessage.senderId);
+        const text = this.chatMessage.text;
+        return {sender, text}
+    }
+
+    showMessage = (chatMessage) => {
+        this.chatMessage = chatMessage;
+
+        this.render(true);
+
+        setTimeout(() => this.close(), 5000);
+    }
+}
 
 
 class ActorCommunicatorApp extends Application {
     selectedContact = null;
     selectedActor = null;
 
+    alarmApp = null;
+
     constructor(actor) {
         super();
 
         this.selectedActor = actor;
+        this.alarmApp = new ActorCommunicatorAlarmApp();
+
+        game.socket.on('module.actor-communicator', data => {
+            console.error('socket', data);
+            if (data.chatMessage) {
+                this.alarmApp.showMessage(data.chatMessage);
+            }
+        });
+
     }
 
     activateListeners(html) {
-        console.error('activateListeners');
         super.activateListeners(html);
 
         //html.find('input[name="contact-add"]').change(this.onContactAddChange);
@@ -49,7 +99,7 @@ class ActorCommunicatorApp extends Application {
     }
 
     getData = () => {
-        console.error('getData');
+        console.error('getData', game);
         const actors = game.actors.entries ? game.actors.entries : [];
 
         // Use selection OR default character.
@@ -174,6 +224,7 @@ class ActorCommunicatorApp extends Application {
         chatHistory[contact.id].push(chatMessage);
         console.error(chatHistory);
         await actor.setFlag('actor-communicator', 'chat-history', JSON.stringify(chatHistory));
+        return chatMessage;
     }
 
     onAddActorAsContact = (event) => {
@@ -238,7 +289,11 @@ class ActorCommunicatorApp extends Application {
             return;
         }
 
-        this._appendContactChatText(this.selectedActor, this.selectedContact, chatText).then(chatHistory => {
+        this._appendContactChatText(this.selectedActor, this.selectedContact, chatText).then(chatMessage => {
+            console.error('emit', game.socket.emit('module.actor-communicator', {
+                chatMessage
+            }));
+
             this.render();
         })
     }
