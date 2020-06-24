@@ -71,7 +71,9 @@ class ActorCommunicatorApp extends Application {
         game.socket.on('module.actor-communicator', data => {
             console.error('socket', data);
             if (data.chatMessage) {
-                this.alarmApp.showMessage(data.chatMessage);
+                if (this._messageIsForActor(this.selectedActor, data.chatMessage)) {
+                    this.alarmApp.showMessage(data.chatMessage);
+                }
             }
         });
 
@@ -84,7 +86,7 @@ class ActorCommunicatorApp extends Application {
         html.find('.add-contact').click(this.onAddActorAsContact);
         html.find('.remove-contact').click(this.onRemoveContact);
         html.find('.select-contact').click(this.onSelectContact);
-        html.find('.add-chat-text').change(this.onAddChatText);
+        html.find('.add-chat-text').change(this.onSendChatText);
     }
 
     static get defaultOptions() {
@@ -123,6 +125,14 @@ class ActorCommunicatorApp extends Application {
             contacts,
             selectedContact
         }
+    }
+
+    _messageIsForActor(actor, chatMessage) {
+        return actor.id === chatMessage.recipientId
+    }
+
+    _messageIsForPlayerActor(chatMessage) {
+        return game.users.entries.some(user => user.character?.id === chatMessage.recipientId);
     }
 
     _getUserControlledActor() {
@@ -228,7 +238,7 @@ class ActorCommunicatorApp extends Application {
     }
 
     onAddActorAsContact = (event) => {
-        const actor = game.user.character;
+        const actor = this.selectedActor;
         if (!actor) {
             return;
         }
@@ -246,7 +256,7 @@ class ActorCommunicatorApp extends Application {
 
     onRemoveContact = (event) => {
         console.error('onRemoveContact');
-        const actor = game.user.character;
+        const actor = this.selectedActor;
         if (!actor) {
             return;
         }
@@ -274,8 +284,8 @@ class ActorCommunicatorApp extends Application {
         this.render();
     }
 
-    onAddChatText = (event) => {
-        console.error('onAddChatText');
+    onSendChatText = (event) => {
+        console.error('onSendChatText');
         const chatText = event.currentTarget.value;
         if (!chatText || !chatText.length || chatText.length === 0) {
             return;
@@ -290,9 +300,11 @@ class ActorCommunicatorApp extends Application {
         }
 
         this._appendContactChatText(this.selectedActor, this.selectedContact, chatText).then(chatMessage => {
-            console.error('emit', game.socket.emit('module.actor-communicator', {
-                chatMessage
-            }));
+            if (this._messageIsForPlayerActor(chatMessage)) {
+                console.error('emitPlayerMessage', game.socket.emit('module.actor-communicator', {
+                    chatMessage
+                }));
+            }
 
             this.render();
         })
