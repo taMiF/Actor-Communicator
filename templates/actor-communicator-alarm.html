@@ -1,3 +1,10 @@
-<div class="chat-message">
-    <img src="{{chatMessage.sender.img}}" class="chat-avatar" alt="{{chatMessage.sender.name}}"/>{{chatMessage.sender.name}}: {{chatMessage.text}}
+<div class="select-contact">
+    {{#if chatMessage.unkownSender}}
+    <img src="icons/svg/mystery-man.svg" class="chat-avatar" alt="{{Unkown}}"/>
+    <span>Unkown Sender:</span>
+    {{else}}
+    <img src="{{chatMessage.sender.img}}" class="chat-avatar" alt="{{chatMessage.sender.name}}"/>
+    <span>{{chatMessage.sender.name}}:</span>
+    {{/if}}
+    <span>{{chatMessage.text}}</span>
 </div>

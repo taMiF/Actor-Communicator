@@ -1,20 +1,40 @@
-{{#if selectedActor}}
-<h3>{{selectedActor.name}}</h3>
+<div>
+    {{selectedActor.name}}
+</div>
+{{#if display.home}}
+<div>Home</div>
+<div>
+    {{#if display.showActorsButton}}<img class="screen-button screen-actors-button" title="Actors"
+                                         src="icons/svg/eye.svg">{{/if}}
+    <img class="screen-button screen-contacts-button" title="Contacts" src="icons/svg/mystery-man.svg">
+</div>
+{{/if}}
+{{#if display.actors}}
 <div>
     <h3>Actors</h3>
     {{#each actors as |actor|}}
-    <div>{{actor.name}}<button class="contact-interaction add-contact" data-actor-id="{{actor.id}}">Add</button></div>
-    {{/each}}
-</div>
-<div>
-    <h3>Contacts</h3>
-    {{#each contacts as |contact|}}
     <div>
-        <span class='select-contact' data-actor-id="{{contact.id}}">{{contact.name}}</span> <button class="contact-interaction remove-contact" data-actor-id="{{contact.id}}">Del</button></div>
+        <img class="screen-button screen-contact-button" data-contact-id="{{actor.id}}" title="Actor"
+             src="{{actor.img}}">
+        <span>{{actor.name}}</span>
+        <button class="contact-interaction add-contact" data-actor-id="{{actor.id}}">Add</button>
+    </div>
     {{/each}}
 </div>
+{{/if}}
+{{#if display.contacts}}
+<div>Contacts</div>
+{{#each contacts as |contact|}}
 <div>
-    <h3>Selected Contact: {{selectedContact.contact.name}}</h3>
+    <img class="screen-button screen-contact-button" data-contact-id="{{contact.id}}" title="{{contact.name}}"
+         src="{{contact.img}}">
+    <span>{{contact.name}}</span>
+</div>
+{{/each}}
+{{/if}}
+{{#if display.contact}}
+<div>
+    <h3><img class="chat-avatar" title="{{contact.name}}" src="{{selectedContact.contact.img}}"> {{selectedContact.contact.name}}</h3>
     {{#each selectedContact.chatHistory as |chatMessage|}}
     <div>{{chatMessage.text}}</div>
     {{/each}}
@@ -22,6 +42,9 @@
         <input name='add-chat-text' class="add-chat-text" type="text" data-contact-id="{{selectedContact.id}}"/>
     </div>
 </div>
-{{else}}
-<div>No Selection</div>
 {{/if}}
+<div>
+    {{#if display.contact}}<img class="screen-button screen-contacts-button" title="Contacts"
+                                src="icons/svg/mystery-man.svg">{{/if}}
+    {{#if display.notHome}}<img class="screen-button screen-home-button" title="Home" src="icons/svg/house.svg">{{/if}}
+</div>

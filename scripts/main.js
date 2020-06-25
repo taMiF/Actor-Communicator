@@ -47,10 +47,9 @@ class ActorCommunicatorAlarmApp extends Application {
     }
 
     getChatMessage = () => {
-        console.error(this.chatMessage, this.chatMessage.senderId, game.actors.get(this.chatMessage.senderId));
         const sender = game.actors.get(this.chatMessage.senderId);
-        const text = this.chatMessage.text;
-        return {sender, text}
+
+        return {...this.chatMessage, sender}
     }
 
     onOpenActorCommunicator = () => {
@@ -82,6 +81,15 @@ class ActorCommunicatorApp extends Application {
 
     alarmApp = null;
 
+    display = {
+        home: true,
+        notHome: false,
+        contacts: false,
+        contact: false,
+        actors: false,
+        showActorsButton: game.user.isGM
+    }
+
     constructor(actor) {
         super();
 
@@ -111,13 +119,16 @@ class ActorCommunicatorApp extends Application {
         //html.find('input[name="contact-add"]').change(this.onContactAddChange);
         html.find('.add-contact').click(this.onAddActorAsContact);
         html.find('.remove-contact').click(this.onRemoveContact);
-        html.find('.select-contact').click(this.onSelectContact);
         html.find('.add-chat-text').change(this.onSendChatText);
+        html.find('.screen-contacts-button').click(this.onScreenOpenContacts);
+        html.find('.screen-actors-button').click(this.onScreenOpenActors);
+        html.find('.screen-home-button').click(this.onScreenOpenHome);
+        html.find('.screen-contact-button').click(this.onScreenOpenContact);
     }
 
     static get defaultOptions() {
         const options = super.defaultOptions;
-        options.width = "auto";
+        options.width = 240;
         options.height = "auto";
         options.id = "actor-communicator-personal";
         options.title = "Communicator";
@@ -129,6 +140,7 @@ class ActorCommunicatorApp extends Application {
     selectActor = (actor) => {
         this.selectedActor = actor;
         this.selectedContact = null;
+        this._setDisplayTo('home');
 
         if (this.rendered) {
             this.render();
@@ -159,11 +171,14 @@ class ActorCommunicatorApp extends Application {
             chatHistory: this._getContactChatHistory(this.selectedActor, this.selectedContact)
         };
 
+        const display = this.display;
+
         return {
             selectedActor,
             actors,
             contacts,
-            selectedContact
+            selectedContact,
+            display
         }
     }
 
@@ -205,6 +220,10 @@ class ActorCommunicatorApp extends Application {
 
     _actorHasContactMissing(actor, contact) {
         return !this._actorHasContactAlready(actor, contact);
+    }
+
+    _currentUserHasCharacter() {
+        return game.user.character !== null;
     }
 
     _getActorFlag(actor, key, defaultValue) {
@@ -271,16 +290,18 @@ class ActorCommunicatorApp extends Application {
     }
 
     // TODO: Add 'send at' o'clock data
-    _newChatMessage(sender, recipient, chatText) {
+    _newChatMessage(sender, recipient, chatText, unkownSender) {
         return {
             senderId: sender.id,
             recipientId: recipient.id,
-            text: chatText
+            text: chatText,
+            unkownSender
         }
     }
 
     async _appendContactChatText(actor, contact, chatText) {
-        const chatMessage = this._newChatMessage(actor, contact, chatText);
+        const unkownSender = this._actorHasContactMissing(contact, actor);
+        const chatMessage = this._newChatMessage(actor, contact, chatText, unkownSender);
 
         const chatHistory = this._getContactsChatHistory(actor, contact);
         chatHistory[contact.id] = chatHistory[contact.id] ? chatHistory[contact.id] : [];
@@ -325,18 +346,6 @@ class ActorCommunicatorApp extends Application {
         });
     }
 
-    onSelectContact = (event) => {
-        console.error('onSelectContact');
-        const contactId = event.currentTarget.getAttribute('data-actor-id');
-        if (!contactId) {
-            return;
-        }
-
-        this.selectedContact = game.actors.get(contactId);
-        console.error(this.selectedContact);
-        this.render();
-    }
-
     onSendChatText = (event) => {
         console.error('onSendChatText');
         const chatText = event.currentTarget.value;
@@ -362,6 +371,42 @@ class ActorCommunicatorApp extends Application {
             this.render();
         })
     }
+
+    _setDisplayTo(key) {
+        if (!this.display.hasOwnProperty(key)) {
+            return;
+        }
+        Object.keys(this.display).forEach(key => this.display[key] = false);
+        this.display[key] = true;
+        this.display.notHome = !this.display.home;
+        this.display.showActorsButton = game.user.isGM;
+    }
+
+    onScreenOpenContacts = (event) => {
+        this._setDisplayTo('contacts');
+        this.render();
+    }
+
+    onScreenOpenActors = (event) => {
+        this._setDisplayTo('actors');
+        this.render();
+    }
+
+    onScreenOpenContact = (event) => {
+        this._setDisplayTo('contact');
+        const contactId = event.currentTarget.getAttribute('data-contact-id');
+        const contact = game.actors.get(contactId);
+        if (!contact || this.selectedActor.id === contactId) {
+            return;
+        }
+        this.selectedContact = contact;
+        this.render();
+    }
+
+    onScreenOpenHome = (event) => {
+        this._setDisplayTo('home');
+        this.render();
+    }
 }
 
 
@@ -372,29 +417,14 @@ Hooks.on('ready', () => {
     actorCommunicatorApp = new ActorCommunicatorApp()
     const users = game.users.entries;
 
-    console.error(game.modules.keys());
-
-    console.error('Get');
-    Object.values(users).forEach(user => {
-        console.error(user.name, user.getFlag('actor-communicator', 'data'));
-    });
-
-    // console.error('Set');
-    // Object.values(users).forEach(user => {
-    //     console.error(user.name, user.isGM);
-    //     if (!user.isGM) {
-    //         user.setFlag('actor-communicator', 'data', {test: 'Hallo'});
-    //     }
-    // });
-
     // NOTE: Just as a placeholder, should a 'call' slide in from viewportBorder.
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth ||
-        document.body.clientWidth;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight ||
-        document.body.clientHeight;
-    console.error(viewportWidth, viewportHeight);
+    // const viewportWidth = window.innerWidth || document.documentElement.clientWidth ||
+    //     document.body.clientWidth;
+    // const viewportHeight = window.innerHeight || document.documentElement.clientHeight ||
+    //     document.body.clientHeight;
+    // console.error(viewportWidth, viewportHeight);
 
-    if (game.user.character) {
+    if (actorCommunicatorApp._currentUserHasCharacter()) {
         actorCommunicatorApp.render(true);
     }
     // actorComApp.setPosition()
@@ -405,7 +435,7 @@ Hooks.on('getSceneControlButtons', controls => {
         name: 'Communicator',
         title: 'Communicator',
         icon: 'fas fa-envelope',
-        visible: game.user.isGM,
+        visible: true,
         onClick: () => {
             // Disable selection of SR5GroupRoll Tool.
             controls[0].activeTool = "select";
