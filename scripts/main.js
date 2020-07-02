@@ -128,7 +128,6 @@ class ActorCommunicatorApp extends Application {
         super.activateListeners(html);
 
         html.find('.add-contact').click(this.onAddActorAsContact);
-        html.find('.remove-contact').click(this.onRemoveContact);
         html.find('.add-chat-text').change(this.onSendChatText);
         html.find('.screen-contacts-button').click(this.onScreenOpenContacts);
         html.find('.screen-actors-button').click(this.onScreenOpenActors);
@@ -172,13 +171,14 @@ class ActorCommunicatorApp extends Application {
             this.selectActor(selectedActor)
         }
 
-        // TODO: Bug. Fay has Boss Human has Contact?
         const contacts = this._getActorContacts(selectedActor);
         let selectedContact = {};
 
         if (this.selectedContact) {
-            selectedContact.contact = this._getActorContact(this.selectedContact);
-            selectedContact.chatHistory = this._getContactChatHistory(this.selectedActor, this.selectedContact);
+            const contactsData = this._getActorContactsFlag(this.selectedActor);
+            const contactData = contactsData[this.selectedContact.id];
+            selectedContact.contact = this._getActorFromContactData(contactData);
+            selectedContact.chatHistory = contactData.chatHistory;
         }
 
 
@@ -207,14 +207,6 @@ class ActorCommunicatorApp extends Application {
         return this._messageIsForOtherActor(chatMessage) && messageIsForPlayerActor;
     }
 
-    _actorHasContact(actor, possibleContact) {
-        if (!possibleContact || !actor) {
-            return false;
-        }
-        const contactIds = this._getActorContactIds(actor);
-        return contactIds.some(contactId => contactId === possibleContact.id);
-    }
-
     _getUserControlledActor() {
         // TODO: Do something about multi selection.
         const token = canvas.tokens.controlled ? canvas.tokens.controlled[0] : null;
@@ -225,13 +217,16 @@ class ActorCommunicatorApp extends Application {
         return game.actors.get(token.actor.id)
     }
 
-    _actorHasContactAlready(actor, contact) {
-        const contactIds = this._getActorContactIds(actor);
-        return contactIds.indexOf(contact.id) !== -1;
+    _actorHasContact(actor, contact) {
+        if (!actor || !contact) {
+            return false;
+        }
+        const contactsData = this._getActorContactsFlag(actor);
+        return contactsData.hasOwnProperty(contact.id);
     }
 
     _actorHasContactMissing(actor, contact) {
-        return !this._actorHasContactAlready(actor, contact);
+        return !this._actorHasContact(actor, contact);
     }
 
     _currentUserHasCharacter() {
@@ -242,6 +237,7 @@ class ActorCommunicatorApp extends Application {
         if (!actor) {
             return null;
         }
+        console.error('getActorFlag', actor, key);
         const jsonValue = actor.getFlag(ActorCommunicatorApp.module, key);
         if (!jsonValue) {
             return defaultValue;
@@ -253,17 +249,19 @@ class ActorCommunicatorApp extends Application {
         return JSON.parse(jsonValue);
     }
 
-    _getActorContactIds(actor) {
-        return this._getActorFlag(actor, ActorCommunicatorApp.contacts, []);
+    _getActorContactsFlag(actor) {
+        return this._getActorFlag(actor, ActorCommunicatorApp.contacts, {});
     }
 
-    _getActorContact({id, anonymous}) {
+    // TODO: Remove this function and let template use 'contacts' structure directly.
+    _getActorFromContactData({id, anonymous, hideFrom}) {
         const actor = game.actors.get(id);
         return {
             id: actor.id,
             name: actor.name,
             img: actor.img,
-            anonymous: anonymous
+            anonymous: anonymous,
+            hideFrom
         }
     }
 
@@ -271,39 +269,32 @@ class ActorCommunicatorApp extends Application {
         if (!actor) {
             return null;
         }
-        const contacts = this._getActorContactIds(actor);
-        return contacts.map(contact => this._getActorContact(contact));
+        const contactsData = this._getActorContactsFlag(actor);
+        console.error('_getActorContacts', contactsData);
+        return Object.values(contactsData).map(contactData => this._getActorFromContactData(contactData));
     }
 
     async _addActorContact(actor, contact, anonymous = false) {
         // await actor.sunetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts);
-        let contacts = this._getActorContactIds(actor);
+        let contactsData = this._getActorContactsFlag(actor);
 
         if (this._actorHasContactMissing(actor, contact)) {
-            contacts.push({id: contact.id, anonymous});
-            await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contacts));
+            contactsData[contact.id] = {
+                id: contact.id,
+                anonymous,
+                chatHistory: [],
+                members: null,
+                hideFrom: false // TODO: Implement contact hideFrom
+            };
+            await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contactsData));
         }
 
-        return contacts
-    }
-
-    async _removeActorContact(actor, contact) {
-        let contactIds = this._getActorContactIds(actor);
-        const contactIndex = contactIds.indexOf(contact.id);
-        if (contactIndex === -1) {
-            return;
-        }
-        contactIds = contactIds.filter(contactId => contactId !== contact.id);
-        await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contactIds));
-        return contactIds;
-    }
-
-    async _removeActorContacts(actor) {
-
+        return contactsData
     }
 
     _getContactsChatHistory(actor) {
-        return this._getActorFlag(actor, ActorCommunicatorApp.chatHistory, {});
+        const contactData = this._getActorContactsFlag(actor);
+        return contactData ? contactData.chatHistory : [];
     }
 
     _getContactChatHistory(actor, contact) {
@@ -325,13 +316,13 @@ class ActorCommunicatorApp extends Application {
     }
 
     async _appendContactChatText(actor, contact, chatText) {
+        console.error('_appendContactChatText', actor, contact);
         const unkownSender = this._actorHasContactMissing(contact, actor);
         const chatMessage = this._newChatMessage(actor, contact, chatText, unkownSender);
 
-        const chatHistory = this._getContactsChatHistory(actor, contact);
-        chatHistory[contact.id] = chatHistory[contact.id] ? chatHistory[contact.id] : [];
-        chatHistory[contact.id].push(chatMessage);
-        await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.chatHistory, JSON.stringify(chatHistory));
+        const contactsData = this._getActorContactsFlag(actor);
+        contactsData[contact.id].chatHistory.push(chatMessage);
+        await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contactsData));
         return chatMessage;
     }
 
@@ -352,26 +343,7 @@ class ActorCommunicatorApp extends Application {
         });
     }
 
-    onRemoveContact = (event) => {
-        console.error('onRemoveContact');
-        const actor = this.selectedActor;
-        if (!actor) {
-            return;
-        }
-
-        const contactId = event.currentTarget.getAttribute('data-actor-id');
-        if (!contactId) {
-            return;
-        }
-
-        const contact = game.actors.get(contactId);
-        this._removeActorContact(actor, contact).then(contactIds => {
-            this.render();
-        });
-    }
-
     onSendChatText = (event) => {
-        console.error('onSendChatText');
         const chatText = event.currentTarget.value;
         if (!chatText || !chatText.length || chatText.length === 0) {
             return;
@@ -421,20 +393,21 @@ class ActorCommunicatorApp extends Application {
         this._setDisplayTo('contact');
 
         const contactId = event.currentTarget.getAttribute('data-contact-id');
-        const contacts = this._getActorContactIds(this.selectedActor);
-        const contact = contacts.find(contact => contact.id === contactId);
-        if (!contact || this.selectedActor.id === contactId) {
+        if (!contactId) {
             return;
         }
-        this.selectedContact = contact;
+        this.selectedContact = game.actors.get(contactId);
         this.render();
     }
 
     onResetAllActors = (event) => {
         game.actors.entries.forEach(actor => {
             console.error('Resetting communicator data for actor', actor.id);
+            // TODO: Implement async function for public release.
             actor.unsetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts);
             actor.unsetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.chatHistory);
+
+            this.onScreenOpenHome();
         });
         this.render();
     }
