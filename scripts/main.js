@@ -15,8 +15,6 @@
  *
  */
 
-const ActorContactsFlag = ['actor-communicator', 'contactIds'];
-
 class ActorCommunicatorAlarmApp extends Application {
     chatMessage = null;
 
@@ -40,7 +38,6 @@ class ActorCommunicatorAlarmApp extends Application {
 
     getData() {
         const chatMessage = this.getChatMessage();
-        console.error('Alarm.getdata', chatMessage)
         return {
             chatMessage
         }
@@ -76,6 +73,11 @@ class ActorCommunicatorAlarmApp extends Application {
 
 
 class ActorCommunicatorApp extends Application {
+    static module = 'actor-communicator';
+    static moduleSocket = 'module.actor-communicator';
+    static contacts = 'contacts';
+    static chatHistory = 'chat-history';
+
     selectedContact = null;
     selectedActor = null;
 
@@ -96,19 +98,28 @@ class ActorCommunicatorApp extends Application {
         this.selectedActor = actor;
         this.alarmApp = new ActorCommunicatorAlarmApp();
 
-        game.socket.on('module.actor-communicator', data => {
+        game.socket.on(ActorCommunicatorApp.moduleSocket, data => {
             console.error('socket', data);
             if (data.chatMessage) {
                 if (this._messageIsForActor(this.selectedActor, data.chatMessage)) {
+                    // TODO: remove null for timeout.
                     this.alarmApp.showMessage(data.chatMessage, null);
+
+                    const actor = game.actors.get(data.chatMessage.recipientId);
+                    const contact = game.actors.get(data.chatMessage.senderId);
+                    if (this._actorHasContactMissing(actor, contact)) {
+                        console.error('Adding message contact');
+                        this._addActorContact(actor, contact, data.chatMessage.unkownSender);
+                        this.render();
+                    }
                 }
             }
         });
 
         Hooks.on('controlToken', (token, controlled) => {
             if (controlled) {
-                console.error(token);
                 this.selectActor(token.actor);
+                this.render();
             }
         });
     }
@@ -116,7 +127,6 @@ class ActorCommunicatorApp extends Application {
     activateListeners(html) {
         super.activateListeners(html);
 
-        //html.find('input[name="contact-add"]').change(this.onContactAddChange);
         html.find('.add-contact').click(this.onAddActorAsContact);
         html.find('.remove-contact').click(this.onRemoveContact);
         html.find('.add-chat-text').change(this.onSendChatText);
@@ -124,6 +134,7 @@ class ActorCommunicatorApp extends Application {
         html.find('.screen-actors-button').click(this.onScreenOpenActors);
         html.find('.screen-home-button').click(this.onScreenOpenHome);
         html.find('.screen-contact-button').click(this.onScreenOpenContact);
+        html.find('.reset-all-contacts').click(this.onResetAllActors);
     }
 
     static get defaultOptions() {
@@ -138,17 +149,13 @@ class ActorCommunicatorApp extends Application {
     }
 
     selectActor = (actor) => {
-        this.selectedActor = actor;
+        this.selectedActor = game.actors.get(actor.id);
         this.selectedContact = null;
         this._setDisplayTo('home');
-
-        if (this.rendered) {
-            this.render();
-        }
     }
 
     showForActor = (actor) => {
-        this.selectedActor(actor);
+        this.selectActor(actor);
         this.render(true);
     }
 
@@ -165,11 +172,15 @@ class ActorCommunicatorApp extends Application {
             this.selectActor(selectedActor)
         }
 
+        // TODO: Bug. Fay has Boss Human has Contact?
         const contacts = this._getActorContacts(selectedActor);
-        const selectedContact = {
-            contact: this.selectedContact,
-            chatHistory: this._getContactChatHistory(this.selectedActor, this.selectedContact)
-        };
+        let selectedContact = {};
+
+        if (this.selectedContact) {
+            selectedContact.contact = this._getActorContact(this.selectedContact);
+            selectedContact.chatHistory = this._getContactChatHistory(this.selectedActor, this.selectedContact);
+        }
+
 
         const display = this.display;
 
@@ -178,7 +189,8 @@ class ActorCommunicatorApp extends Application {
             actors,
             contacts,
             selectedContact,
-            display
+            display,
+            isGM: game.user.isGM
         }
     }
 
@@ -210,7 +222,7 @@ class ActorCommunicatorApp extends Application {
             return null;
         }
         // TODO: Check what happens for Grunt token / actors. Shared chatHistory?
-        return token.actor;
+        return game.actors.get(token.actor.id)
     }
 
     _actorHasContactAlready(actor, contact) {
@@ -230,7 +242,7 @@ class ActorCommunicatorApp extends Application {
         if (!actor) {
             return null;
         }
-        const jsonValue = actor.getFlag('actor-communicator', key);
+        const jsonValue = actor.getFlag(ActorCommunicatorApp.module, key);
         if (!jsonValue) {
             return defaultValue;
         }
@@ -242,27 +254,37 @@ class ActorCommunicatorApp extends Application {
     }
 
     _getActorContactIds(actor) {
-        return this._getActorFlag(actor, 'contactIds', []);
+        return this._getActorFlag(actor, ActorCommunicatorApp.contacts, []);
+    }
+
+    _getActorContact({id, anonymous}) {
+        const actor = game.actors.get(id);
+        return {
+            id: actor.id,
+            name: actor.name,
+            img: actor.img,
+            anonymous: anonymous
+        }
     }
 
     _getActorContacts(actor) {
         if (!actor) {
             return null;
         }
-        const contactIds = this._getActorContactIds(actor);
-        return contactIds.map(id => game.actors.get(id));
+        const contacts = this._getActorContactIds(actor);
+        return contacts.map(contact => this._getActorContact(contact));
     }
 
-    async _addActorContact(actor, contact) {
-        // await actor.sunetFlag('actor-communicator', 'contactIds');
-        let contactIds = this._getActorContactIds(actor);
+    async _addActorContact(actor, contact, anonymous = false) {
+        // await actor.sunetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts);
+        let contacts = this._getActorContactIds(actor);
 
         if (this._actorHasContactMissing(actor, contact)) {
-            contactIds.push(contact.id);
-            await actor.setFlag('actor-communicator', 'contactIds', JSON.stringify(contactIds));
+            contacts.push({id: contact.id, anonymous});
+            await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contacts));
         }
 
-        return contactIds
+        return contacts
     }
 
     async _removeActorContact(actor, contact) {
@@ -272,13 +294,16 @@ class ActorCommunicatorApp extends Application {
             return;
         }
         contactIds = contactIds.filter(contactId => contactId !== contact.id);
-        console.error('remove', contactIds, contactIndex, contact.id);
-        await actor.setFlag('actor-communicator', 'contactIds', JSON.stringify(contactIds));
+        await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts, JSON.stringify(contactIds));
         return contactIds;
     }
 
+    async _removeActorContacts(actor) {
+
+    }
+
     _getContactsChatHistory(actor) {
-        return this._getActorFlag(actor, 'chat-history', {});
+        return this._getActorFlag(actor, ActorCommunicatorApp.chatHistory, {});
     }
 
     _getContactChatHistory(actor, contact) {
@@ -306,8 +331,7 @@ class ActorCommunicatorApp extends Application {
         const chatHistory = this._getContactsChatHistory(actor, contact);
         chatHistory[contact.id] = chatHistory[contact.id] ? chatHistory[contact.id] : [];
         chatHistory[contact.id].push(chatMessage);
-        console.error(chatHistory);
-        await actor.setFlag('actor-communicator', 'chat-history', JSON.stringify(chatHistory));
+        await actor.setFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.chatHistory, JSON.stringify(chatHistory));
         return chatMessage;
     }
 
@@ -362,6 +386,7 @@ class ActorCommunicatorApp extends Application {
         }
 
         this._appendContactChatText(this.selectedActor, this.selectedContact, chatText).then(chatMessage => {
+            // TODO: This will prohibit alarms for gm controlled tokens.
             if (this._messageIsForPlayerActor(chatMessage)) {
                 console.error('emitPlayerMessage', game.socket.emit('module.actor-communicator', {
                     chatMessage
@@ -394,12 +419,23 @@ class ActorCommunicatorApp extends Application {
 
     onScreenOpenContact = (event) => {
         this._setDisplayTo('contact');
+
         const contactId = event.currentTarget.getAttribute('data-contact-id');
-        const contact = game.actors.get(contactId);
+        const contacts = this._getActorContactIds(this.selectedActor);
+        const contact = contacts.find(contact => contact.id === contactId);
         if (!contact || this.selectedActor.id === contactId) {
             return;
         }
         this.selectedContact = contact;
+        this.render();
+    }
+
+    onResetAllActors = (event) => {
+        game.actors.entries.forEach(actor => {
+            console.error('Resetting communicator data for actor', actor.id);
+            actor.unsetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.contacts);
+            actor.unsetFlag(ActorCommunicatorApp.module, ActorCommunicatorApp.chatHistory);
+        });
         this.render();
     }
 
@@ -414,8 +450,7 @@ let actorCommunicatorApp = null;
 
 Hooks.on('ready', () => {
     console.error('Actor Communicator', game);
-    actorCommunicatorApp = new ActorCommunicatorApp()
-    const users = game.users.entries;
+    actorCommunicatorApp = new ActorCommunicatorApp();
 
     // NOTE: Just as a placeholder, should a 'call' slide in from viewportBorder.
     // const viewportWidth = window.innerWidth || document.documentElement.clientWidth ||
