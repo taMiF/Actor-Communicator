@@ -14,7 +14,7 @@
   ],
   "socket": true,
   "system": "shadowrun5e",
-  "manifest": "https://raw.githubusercontent.com/Pronana/Actor-Communicator/master/module.json",
+  "manifest": "https://raw.githubusercontent.com/taMiF/FoundryVTT-Actor-Communicator/master/module.json",
   "url": "https://github.com/taMiF/FoundryVTT-Actor-Communicator",
-  "download": "https://github.com/Pronana/Actor-Communicator/archive/master.zip"
+  "download": "https://github.com/taMiF/Actor-Communicator/archive/master.zip"
 }
