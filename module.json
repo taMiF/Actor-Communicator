@@ -15,5 +15,6 @@
   "socket": true,
   "system": "shadowrun5e",
   "manifest": "https://raw.githubusercontent.com/taMiF/FoundryVTT-Actor-Communicator/master/module.json",
-  "url": "https://github.com/taMiF/FoundryVTT-Actor-Communicator"
+  "url": "https://github.com/taMiF/FoundryVTT-Actor-Communicator",
+  "download": "https://github.com/taMiF/Actor-Communicator/archive/master.zip"
 }
