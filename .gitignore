@@ -1,7 +1,12 @@
-# Created by .ignore support plugin (hsz.mobi)
+node_modules
+foundryconfig.json
+dist
+package
 
 # IntelliJ project files
 .idea
 *.iml
 out
 gen
+
+package-lock.json

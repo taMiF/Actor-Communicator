@@ -1,0 +1,19 @@
+{
+  "name": "actor-communicator",
+  "title": "Actor Communicator",
+  "description": "A PC / NPC comlink style communicator",
+  "version": "0.1.0",
+  "author": "taM#9507",
+  "esmodules": [
+    "actor-communicator.js"
+  ],
+  "styles": [
+    "actor-communicator.css"
+  ],
+  "minimumCoreVersion": "0.5.0",
+  "compatibleCoreVersion": "0.5.0",
+  "socket": true,
+  "manifest": "https://raw.githubusercontent.com/taMiF/FoundryVTT-Actor-Communicator/master/module.json",
+  "url": "https://github.com/taMiF/FoundryVTT-Actor-Communicator",
+  "download": "https://github.com/taMiF/Actor-Communicator/archive/master.zip"
+}
