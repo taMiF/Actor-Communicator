@@ -13,5 +13,6 @@ In order to develope for this you need to and install nodejs/gulp globally and:
 ```
 cd <module-dir>
 npm install
+gulp link # admin permissions needed on windows...
 gulp watch
 ```
