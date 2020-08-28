@@ -29,6 +29,10 @@ export type ContactDisplayData = {
     hideFrom: boolean,
 }
 
+export type AlarmDisplayData = {
+    chatMessage: ChatMessageData
+}
+
 export type SelectedContactData = {
     contact: ContactDisplayData,
     // TODO: Add type for SelectedContactData.chatHistory
@@ -37,7 +41,16 @@ export type SelectedContactData = {
 
 export type ChatMessageData = {
     senderId: string,
+    sender?: Actor,
     recipientId: string,
     text: string,
     unknownSender: boolean
+}
+
+// Define different types / data sets with A | B syntax, when needed.
+export type SocketMessageType = 'ChatMessage';
+export type SocketMessageData = ChatMessageData;
+export type SocketMessage = {
+    data: SocketMessageData,
+    type: SocketMessageType
 }

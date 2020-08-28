@@ -1,14 +1,16 @@
-console.error('IT WORKED');
-
-import {moduleName} from "./settings";
+import {ActorAlarmApp} from "./alarm";
+import {moduleName, moduleSocket} from "./settings";
 import {
     ActorCommunicatorDisplay,
     ChatMessageData,
     ContactData,
     ContactDisplayData,
     ContactsData,
-    SelectedContactData
+    SelectedContactData,
+    SocketMessage, SocketMessageData, SocketMessageType
 } from "./types";
+
+console.error('IT WORKED');
 
 export class ActorCommunicatorApp extends Application {
     static contacts: string = 'contacts';
@@ -18,6 +20,8 @@ export class ActorCommunicatorApp extends Application {
     selectedContact: Actor;
 
     display: ActorCommunicatorDisplay;
+
+    alarmApp: ActorAlarmApp;
 
     static options: ApplicationOptions = {
         width: 240,
@@ -33,6 +37,10 @@ export class ActorCommunicatorApp extends Application {
 
         this.selectedActor = actor;
         this._setupDisplay();
+        this.setupHooks();
+        this.setupSocketHooks();
+
+        this.alarmApp = new ActorAlarmApp(this);
     }
 
     static get defaultOptions() {
@@ -106,6 +114,7 @@ export class ActorCommunicatorApp extends Application {
         });
     }
 
+    // TODO: Does onSendChatText need to be async?
     onSendChatText = (event) => {
         const chatText = event.currentTarget.value;
         if (!chatText || !chatText.length || chatText.length === 0) {
@@ -125,9 +134,8 @@ export class ActorCommunicatorApp extends Application {
             console.error('onSendChatText', chatMessage, this._messageIsForPlayerActor(chatMessage));
 
             if (this._messageIsForPlayerActor(chatMessage)) {
-                console.error('emitPlayerMessage', game.socket.emit('module.actor-communicator', {
-                    chatMessage
-                }));
+                const socketMessage = this._createSocketMessage('ChatMessage', chatMessage);
+                console.error('emitPlayerMessage', game.socket.emit(moduleSocket, socketMessage));
             }
 
             this.render();
@@ -179,6 +187,15 @@ export class ActorCommunicatorApp extends Application {
             this.selectedContact = null;
             this._setDisplayTo('home');
         }
+    }
+
+    showForActor = (actor: Actor) => {
+        this.selectActor(actor);
+        this.render(true);
+    }
+
+    _createSocketMessage(type: SocketMessageType, data: SocketMessageData): SocketMessage {
+        return {type, data};
     }
 
     _setupDisplay() {
@@ -311,6 +328,10 @@ export class ActorCommunicatorApp extends Application {
         return this._getActorFlag(actor, ActorCommunicatorApp.contacts, {});
     }
 
+    _messageIsForActor(actor: Actor, chatMessage: ChatMessageData) {
+        return actor.id === chatMessage.recipientId;
+    }
+
     setupHooks() {
         console.log(`${moduleName} | setupHooks`);
 
@@ -335,6 +356,36 @@ export class ActorCommunicatorApp extends Application {
                 this.selectActor(token.actor);
                 this.render();
             }
+        });
+    }
+
+    setupSocketHooks() {
+        console.log(`${moduleName} | setupSocketHooks`);
+
+        game.socket.on(moduleSocket, async (messageData: SocketMessage) => {
+            console.error(`${moduleName} - socket:${moduleSocket} | `, messageData);
+
+            switch (messageData.type) {
+                case 'ChatMessage': {
+                    if (messageData.data && this._messageIsForActor(this.selectedActor, messageData.data)) {
+                        // TODO: remove null for timeout.
+                        this.alarmApp.showMessage(messageData.data, null);
+
+                        const actor: Actor = game.actors.get(messageData.data.recipientId);
+                        const contact: Actor = game.actors.get(messageData.data.senderId);
+                        if (this._actorHasContactMissing(actor, contact)) {
+                            console.error(`${moduleName} | Adding message contact`);
+                            await this._addActorContact(actor, contact, messageData.data.unknownSender);
+                            this.render();
+                        }
+                    }
+                    break;
+                }
+                default: {
+                    console.error(`${moduleName} | Unknown SocketMessageData type submitted`, messageData);
+                }
+            }
+
         });
     }
 }
