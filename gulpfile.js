@@ -179,10 +179,10 @@ async function copyFiles() {
 	} catch (err) {
 		Promise.reject(err);
 	}
+	await copyDistFiles();
 }
 
 async function copyDistFiles() {
-
 	const name = path.basename(path.resolve('.'));
 	const config = fs.readJSONSync('foundryconfig.json');
 
@@ -216,18 +216,11 @@ async function copyDistFiles() {
 			throw Error('No User Data path defined in foundryconfig.json');
 		}
 
-		if (argv.clean || argv.c) {
-			console.log(
-				chalk.yellow(`Removing build in ${chalk.blueBright(linkDir)}`)
-			);
+		console.log(
+			chalk.green(`Copying build to ${chalk.blueBright(linkDir)}`)
+		);
+		await gulp.src(['dist/**/*'], {base: './dist/'}).pipe(gulp.dest(linkDir));
 
-			await fs.remove(linkDir);
-		} else if (!fs.existsSync(linkDir)) {
-			console.log(
-				chalk.green(`Copying build to ${chalk.blueBright(linkDir)}`)
-			);
-			await gulp.src(['dist/**/*'], {base: './dist/'}).pipe(gulp.dest(linkDir));
-		}
 		return Promise.resolve();
 	}
 	catch (err) {
@@ -247,7 +240,8 @@ function buildWatch() {
 		{ ignoreInitial: false },
 		copyFiles
 	);
-	gulp.watch('dist/**/*', {ignoreInitial: false}, copyDistFiles)
+	// TODO: This will trigger for each of the watches above and may result in race conditions.
+	// gulp.watch('dist/**/*', {ignoreInitial: false}, copyDistFiles);
 }
 
 /********************/
@@ -546,6 +540,7 @@ const execBuild = gulp.parallel(buildTS, buildLess, buildSASS, copyFiles);
 
 exports.build = gulp.series(clean, execBuild);
 exports.watch = buildWatch;
+exports.copy = copyDistFiles;
 exports.clean = clean;
 exports.link = linkUserData;
 exports.package = packageBuild;
